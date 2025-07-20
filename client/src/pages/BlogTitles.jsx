@@ -1,5 +1,5 @@
 import React,{useState} from 'react'
-import {Edit, Hash, Sparkles} from 'lucide-react'
+import { Hash, Sparkles} from 'lucide-react'
 
 
 const BlogTitles = () => {

@@ -3,7 +3,6 @@ import { Eraser, Sparkles } from "lucide-react";
 
 const RemoveBackground = () => {
   const [input, setInput] = useState("");
-  const [publish, setPublish] = useState(false);
   const onSubmitHandler = async (e) => {
     e.preventDefault();
   };

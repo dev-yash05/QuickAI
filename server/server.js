@@ -11,7 +11,11 @@ const app = express();
 // Initialize Cloudinary
 await connectCloudinary();
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || "https://quick-ai-zeta-hazel.vercel.app", // MUST match your frontend URL exactly
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true // Required if you are sending cookies or headers
+}));
 app.use(express.json());
 app.use(clerkMiddleware());
 

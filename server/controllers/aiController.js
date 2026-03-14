@@ -18,8 +18,8 @@ const GEMINI_API_KEY =
 
 const FALLBACK_TEXT_MODELS = [
   GEMINI_TEXT_MODEL,
+  "gemini-2.5-flash-lite",
   "gemini-2.0-flash",
-  "gemini-1.5-flash",
 ].filter((model, index, arr) => Boolean(model) && arr.indexOf(model) === index);
 
 const AI = new OpenAI({
@@ -50,6 +50,15 @@ const getProviderErrorDetails = (error) => {
       status,
       message:
         "Gemini request was unauthorized (401). Verify GEMINI_API_KEY/GOOGLE_API_KEY is present and correct.",
+      providerMessage,
+    };
+  }
+
+  if (status === 404 || /not found for API version/i.test(providerMessage)) {
+    return {
+      status,
+      message:
+        "Gemini model not found for this API version. Set GEMINI_TEXT_MODEL to a currently supported model such as gemini-2.5-flash or gemini-2.5-flash-lite.",
       providerMessage,
     };
   }

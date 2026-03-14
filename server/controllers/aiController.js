@@ -444,7 +444,42 @@ export const resumeReview = async (req, res) => {
     const dataBuffer = fs.readFileSync(resume.path);
     const pdfData = await pdf(dataBuffer);
 
-    const prompt = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${pdfData.text}`;
+     const prompt = `You are an expert technical resume reviewer.
+
+  Review the resume below and provide a full, practical, and detailed review in Markdown.
+
+  Output format (use all sections):
+  1. Overall Assessment (score out of 10 with 3-4 lines summary)
+  2. Key Strengths (at least 5 bullets)
+  3. Critical Gaps / Weaknesses (at least 5 bullets)
+  4. ATS Analysis
+    - Keyword coverage
+    - Formatting risks
+    - Section completeness
+  5. Section-by-Section Review
+    - Header/Contact
+    - Summary/Objective
+    - Skills
+    - Experience/Projects
+    - Education
+    - Certifications/Achievements
+  6. Improved Bullet Rewrites
+    - Rewrite at least 6 weak bullets into strong impact-based bullets with metrics where possible
+  7. Role Alignment
+    - Fit for Full-Stack Java Developer
+    - Fit for Frontend Developer
+    - Fit for Backend Developer
+  8. Priority Action Plan
+    - Top 10 concrete fixes in order of impact
+  9. Final Improved Professional Summary
+    - Provide a ready-to-use summary paragraph
+
+  Rules:
+  - Be specific, direct, and actionable.
+  - Avoid generic advice.
+  - Keep the response comprehensive (roughly 900-1400 words).
+
+  Resume Content:\n\n${pdfData.text}`;
 
     const response = await createChatCompletionWithFallback({
       messages: [
@@ -453,7 +488,7 @@ export const resumeReview = async (req, res) => {
           content: prompt,
         },
       ],
-      maxTokens: 1000,
+      maxTokens: 2800,
     });
 
     const content = response.choices[0].message.content;

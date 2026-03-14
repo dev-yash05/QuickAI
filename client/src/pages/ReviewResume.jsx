@@ -30,7 +30,7 @@ const ReviewResume = () => {
       if(data.success) {
         setContent(data.content);
       } else {
-        toast.error(data.message || 'Failed to generate image');
+        toast.error(data.message || 'Failed to review resume');
       }
     } catch (error) {
       const errorMessage =

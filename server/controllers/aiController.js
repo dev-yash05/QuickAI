@@ -7,14 +7,20 @@ import FormData from "form-data";
 import fs from "fs";
 import pdf from "pdf-parse/lib/pdf-parse.js";
 
+const GEMINI_BASE_URL =
+  process.env.GEMINI_BASE_URL ||
+  "https://generativelanguage.googleapis.com/v1beta/openai/";
+const GEMINI_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
+
 const AI = new OpenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+  apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+  baseURL: GEMINI_BASE_URL,
 });
 
 export const generateArticle = async (req, res) => {
   try {
     const { userId } = req.auth();
+    console.log("userId", userId);
     const { prompt, length } = req.body;
     const plan = req.plan;
     const free_usage = req.free_usage;
@@ -27,7 +33,7 @@ export const generateArticle = async (req, res) => {
     }
 
     const response = await AI.chat.completions.create({
-      model: "gemini-2.0-flash",
+      model: GEMINI_TEXT_MODEL,
       messages: [
         {
           role: "user",
@@ -37,6 +43,7 @@ export const generateArticle = async (req, res) => {
       temperature: 0.7,
       max_tokens: length,
     });
+    console.log("response", response);
 
     const content = response.choices[0].message.content;
 
@@ -57,6 +64,7 @@ export const generateArticle = async (req, res) => {
     });
   } catch (error) {
     console.log(error.message);
+    console.log("yaha se hi aaya h error"+error)
     res.json({
       success: false,
       message: error.message,
@@ -79,7 +87,7 @@ export const generateBlogTitle = async (req, res) => {
     }
 
     const response = await AI.chat.completions.create({
-      model: "gemini-2.0-flash",
+      model: GEMINI_TEXT_MODEL,
       messages: [
         {
           role: "user",
@@ -285,7 +293,7 @@ export const resumeReview = async (req, res) => {
     const prompt = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${pdfData.text}`;
 
     const response = await AI.chat.completions.create({
-      model: "gemini-2.0-flash",
+      model: GEMINI_TEXT_MODEL,
       messages: [
         {
           role: "user",

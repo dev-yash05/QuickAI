@@ -37,6 +37,15 @@ const getProviderErrorDetails = (error) => {
     "Unknown provider error";
 
   if (status === 403) {
+    if (/reported as leaked/i.test(providerMessage)) {
+      return {
+        status,
+        message:
+          "Gemini rejected this key because it was reported as leaked. Generate a new API key in Google AI Studio and update GEMINI_API_KEY.",
+        providerMessage,
+      };
+    }
+
     return {
       status,
       message:

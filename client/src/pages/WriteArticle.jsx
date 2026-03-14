@@ -37,7 +37,12 @@ const WriteArticle = () => {
         toast.error(data.message || 'Failed to generate article');
       }
     } catch (error) {
-      toast.error(error.message || 'An error occurred while generating the article');
+      const errorMessage =
+        error?.response?.data?.provider_message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'An error occurred while generating the article';
+      toast.error(errorMessage);
     }
     setLoading(false);
   }

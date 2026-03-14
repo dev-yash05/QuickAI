@@ -31,7 +31,12 @@ const RemoveBackground = () => {
         toast.error(data.message || 'Failed to generate image');
       }
     } catch (error) {
-      toast.error(error.message);
+      const errorMessage =
+        error?.response?.data?.provider_message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to remove background';
+      toast.error(errorMessage);
     }
     setLoading(false);
   };

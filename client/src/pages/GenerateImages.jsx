@@ -37,7 +37,12 @@ const GenerateImages = () => {
           }
 
         } catch (error) {
-          toast.error(error.message);
+            const errorMessage =
+              error?.response?.data?.provider_message ||
+              error?.response?.data?.message ||
+              error?.message ||
+              'Failed to generate image';
+            toast.error(errorMessage);
         }
         setLoading(false);
       }

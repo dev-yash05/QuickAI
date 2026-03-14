@@ -11,11 +11,144 @@ const GEMINI_BASE_URL =
   process.env.GEMINI_BASE_URL ||
   "https://generativelanguage.googleapis.com/v1beta/openai/";
 const GEMINI_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
+const GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY ||
+  process.env.GOOGLE_API_KEY ||
+  process.env.OPENAI_API_KEY;
+
+const FALLBACK_TEXT_MODELS = [
+  GEMINI_TEXT_MODEL,
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+].filter((model, index, arr) => Boolean(model) && arr.indexOf(model) === index);
 
 const AI = new OpenAI({
-  apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+  apiKey: GEMINI_API_KEY,
   baseURL: GEMINI_BASE_URL,
 });
+
+const getProviderErrorDetails = (error) => {
+  const status = error?.status || error?.response?.status;
+  const providerMessage =
+    error?.error?.message ||
+    error?.response?.data?.error?.message ||
+    error?.response?.data?.message ||
+    error?.message ||
+    "Unknown provider error";
+
+  if (status === 403) {
+    return {
+      status,
+      message:
+        "Gemini request was forbidden (403). Check API key validity, API key restrictions, enabled Gemini API, billing/quota, and model availability for your region.",
+      providerMessage,
+    };
+  }
+
+  if (status === 401) {
+    return {
+      status,
+      message:
+        "Gemini request was unauthorized (401). Verify GEMINI_API_KEY/GOOGLE_API_KEY is present and correct.",
+      providerMessage,
+    };
+  }
+
+  return {
+    status,
+    message: providerMessage,
+    providerMessage,
+  };
+};
+
+const normalizeGeminiText = (data) => {
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  return parts.map((part) => part?.text || "").join("").trim();
+};
+
+const createNativeGeminiCompletion = async ({ model, prompt, maxTokens }) => {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+
+  const { data } = await axios.post(endpoint, {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: prompt }],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: maxTokens,
+    },
+  });
+
+  const text = normalizeGeminiText(data);
+
+  if (!text) {
+    throw new Error("Gemini native response did not include text content.");
+  }
+
+  return {
+    choices: [
+      {
+        message: {
+          content: text,
+        },
+      },
+    ],
+  };
+};
+
+const createChatCompletionWithFallback = async ({ messages, maxTokens }) => {
+  if (!GEMINI_API_KEY) {
+    throw new Error(
+      "Missing Gemini API key. Set GEMINI_API_KEY or GOOGLE_API_KEY in server environment variables."
+    );
+  }
+
+  let lastError;
+  const prompt = messages
+    .map((item) =>
+      typeof item?.content === "string"
+        ? item.content
+        : JSON.stringify(item?.content || "")
+    )
+    .join("\n");
+
+  for (const model of FALLBACK_TEXT_MODELS) {
+    try {
+      return await AI.chat.completions.create({
+        model,
+        messages,
+        temperature: 0.7,
+        max_tokens: maxTokens,
+      });
+    } catch (error) {
+      lastError = error;
+      const status = error?.status || error?.response?.status;
+
+      // Retry with fallback models only for common model/access issues.
+      if (![400, 401, 403, 404, 429].includes(status)) {
+        throw error;
+      }
+    }
+  }
+
+  // If OpenAI-compatible calls fail for all models, fallback to Gemini native REST API.
+  for (const model of FALLBACK_TEXT_MODELS) {
+    try {
+      return await createNativeGeminiCompletion({
+        model,
+        prompt,
+        maxTokens,
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+};
 
 export const generateArticle = async (req, res) => {
   try {
@@ -32,18 +165,15 @@ export const generateArticle = async (req, res) => {
       });
     }
 
-    const response = await AI.chat.completions.create({
-      model: GEMINI_TEXT_MODEL,
+    const response = await createChatCompletionWithFallback({
       messages: [
         {
           role: "user",
           content: prompt,
         },
       ],
-      temperature: 0.7,
-      max_tokens: length,
+      maxTokens: length,
     });
-    console.log("response", response);
 
     const content = response.choices[0].message.content;
 
@@ -63,11 +193,13 @@ export const generateArticle = async (req, res) => {
       content: content,
     });
   } catch (error) {
-    console.log(error.message);
-    console.log("yaha se hi aaya h error"+error)
+    const errorDetails = getProviderErrorDetails(error);
+    console.error("generateArticle error:", errorDetails);
     res.json({
       success: false,
-      message: error.message,
+      message: errorDetails.message,
+      provider_message: errorDetails.providerMessage,
+      status: errorDetails.status,
     });
   }
 };
@@ -86,16 +218,14 @@ export const generateBlogTitle = async (req, res) => {
       });
     }
 
-    const response = await AI.chat.completions.create({
-      model: GEMINI_TEXT_MODEL,
+    const response = await createChatCompletionWithFallback({
       messages: [
         {
           role: "user",
           content: prompt,
         },
       ],
-      temperature: 0.7,
-      max_tokens: 100,
+      maxTokens: 100,
     });
 
     const content = response.choices[0].message.content;
@@ -116,10 +246,13 @@ export const generateBlogTitle = async (req, res) => {
       content: content,
     });
   } catch (error) {
-    console.log(error.message);
+    const errorDetails = getProviderErrorDetails(error);
+    console.error("generateBlogTitle error:", errorDetails);
     res.json({
       success: false,
-      message: error.message,
+      message: errorDetails.message,
+      provider_message: errorDetails.providerMessage,
+      status: errorDetails.status,
     });
   }
 };
@@ -292,16 +425,14 @@ export const resumeReview = async (req, res) => {
 
     const prompt = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${pdfData.text}`;
 
-    const response = await AI.chat.completions.create({
-      model: GEMINI_TEXT_MODEL,
+    const response = await createChatCompletionWithFallback({
       messages: [
         {
           role: "user",
           content: prompt,
         },
       ],
-      temperature: 0.7,
-      max_tokens: 1000,
+      maxTokens: 1000,
     });
 
     const content = response.choices[0].message.content;
@@ -314,10 +445,13 @@ export const resumeReview = async (req, res) => {
       });
    
   } catch (error) {
-    console.log(error.message);
+    const errorDetails = getProviderErrorDetails(error);
+    console.error("resumeReview error:", errorDetails);
     res.json({
       success: false,
-      message: error.message,
+      message: errorDetails.message,
+      provider_message: errorDetails.providerMessage,
+      status: errorDetails.status,
     });
   }
 };

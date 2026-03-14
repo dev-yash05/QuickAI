@@ -173,6 +173,9 @@ export const generateArticle = async (req, res) => {
     const { userId } = req.auth();
     console.log("userId", userId);
     const { prompt, length } = req.body;
+    const requestedWords = Number(length) || 800;
+    // Approximate token budget from requested word count to avoid truncation.
+    const maxTokens = Math.min(4000, Math.max(700, Math.round(requestedWords * 1.7)));
     const plan = req.plan;
     const free_usage = req.free_usage;
 
@@ -187,10 +190,10 @@ export const generateArticle = async (req, res) => {
       messages: [
         {
           role: "user",
-          content: prompt,
+          content: `${prompt}\n\nWrite a complete article close to ${requestedWords} words.`,
         },
       ],
-      maxTokens: length,
+      maxTokens,
     });
 
     const content = response.choices[0].message.content;
@@ -243,7 +246,7 @@ export const generateBlogTitle = async (req, res) => {
           content: prompt,
         },
       ],
-      maxTokens: 100,
+      maxTokens: 400,
     });
 
     const content = response.choices[0].message.content;
